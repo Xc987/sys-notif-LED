@@ -75,15 +75,12 @@ void __appExit(void) {
 
 // Initialize the dim LED pattern
 void initializeDimPattern() {
-
     memset(&dimPattern, 0, sizeof(dimPattern));
-    dimPattern.baseMiniCycleDuration = 0x8;
-    dimPattern.totalMiniCycles = 0x2;
-    dimPattern.startIntensity = 0x2;
-    dimPattern.miniCycles[0].ledIntensity = 0xF;
-    dimPattern.miniCycles[0].transitionSteps = 0xF;
-    dimPattern.miniCycles[1].ledIntensity = 0x2;
-    dimPattern.miniCycles[1].transitionSteps = 0xF;
+    dimPattern.baseMiniCycleDuration = 0x0F;
+    dimPattern.startIntensity = 0x2;  // Very dim intensity
+    dimPattern.miniCycles[0].ledIntensity = 0x2;
+    dimPattern.miniCycles[0].transitionSteps = 0x0F;
+    dimPattern.miniCycles[0].finalStepDuration = 0x0F;
 }
 
 // Check if a controller is already in our connected list
@@ -110,12 +107,33 @@ void removeController(HidsysUniquePadId* padId) {
     }
 }
 
-// Set dim LED pattern on a controller
+// Set dim LED pattern on a controller with aggressive retry
 void setDimLed(HidsysUniquePadId* padId) {
-    Result rc = hidsysSetNotificationLedPattern(&dimPattern, *padId);
+    Result rc;
+    
+    // Try multiple times with small delays to ensure the LED stays dim
+    for (int attempt = 0; attempt < 5; attempt++) {
+        rc = hidsysSetNotificationLedPattern(&dimPattern, *padId);
+        if (R_SUCCEEDED(rc)) {
+            break;
+        }
+        
+        // Small delay before retry
+        if (attempt < 4) {
+            svcSleepThread(10000000ULL); // 10ms delay
+        }
+    }
+    
     if (R_FAILED(rc)) {
-        // If setting LED fails, remove the controller from our list
+        // If setting LED fails after multiple attempts, remove the controller from our list
         removeController(padId);
+    }
+}
+
+// Force set dim LED on all connected controllers (used for periodic reinforcement)
+void reinforceDimOnAllControllers() {
+    for (int i = 0; i < numConnectedPads; i++) {
+        setDimLed(&connectedPads[i]);
     }
 }
 
@@ -139,10 +157,13 @@ void scanForNewControllers() {
                     // New controller found - add to list and dim LED
                     if (numConnectedPads < MAX_PADS) {
                         connectedPads[numConnectedPads++] = padIds[j];
+                        
+                        // Set dim LED immediately and aggressively
                         setDimLed(&padIds[j]);
                         
-                        // Log the new connection (optional)
-                        // You could write to a log file here
+                        // Additional immediate reinforcement
+                        svcSleepThread(50000000ULL); // 50ms delay
+                        setDimLed(&padIds[j]);
                     }
                 }
             }
@@ -150,8 +171,8 @@ void scanForNewControllers() {
     }
 }
 
-// Verify existing controllers are still connected
-void verifyConnectedControllers() {
+// Verify existing controllers are still connected and reinforce dim LED
+void verifyAndReinforceControllers() {
     for (int i = 0; i < numConnectedPads; i++) {
         // Try to set the LED pattern to verify the controller is still connected
         Result rc = hidsysSetNotificationLedPattern(&dimPattern, connectedPads[i]);
@@ -171,20 +192,40 @@ int main(int argc, char* argv[]) {
     // Initial scan to get currently connected controllers
     scanForNewControllers();
     
+    // Immediately reinforce dim on all found controllers
+    reinforceDimOnAllControllers();
+    
+    // Counter for different operations
+    int scanCounter = 0;
+    int reinforceCounter = 0;
+    
     // Main service loop
     while (sysmoduleRunning) {
-        // Scan for new controllers every second
-        scanForNewControllers();
+        // Scan for new controllers very frequently (every 200ms)
+        if (scanCounter >= 2) { // 200ms * 2 = 400ms between scans
+            scanForNewControllers();
+            scanCounter = 0;
+        }
         
-        // Verify existing controllers every 5 seconds
+        // Reinforce dim LED on all controllers frequently (every 500ms)
+        if (reinforceCounter >= 5) { // 200ms * 5 = 1 second between reinforcements
+            reinforceDimOnAllControllers();
+            reinforceCounter = 0;
+        }
+        
+        // Verify controllers less frequently (every 5 seconds)
         static int verifyCounter = 0;
-        if (verifyCounter++ >= 5) {
-            verifyConnectedControllers();
+        if (verifyCounter >= 50) { // 200ms * 50 = 10 seconds
+            verifyAndReinforceControllers();
             verifyCounter = 0;
         }
         
-        // Sleep for 1 second
-        svcSleepThread(500000000ULL); // 1 second in nanoseconds
+        // Sleep for 200ms (shorter interval for more responsive behavior)
+        svcSleepThread(200000000ULL); // 200ms in nanoseconds
+        
+        scanCounter++;
+        reinforceCounter++;
+        verifyCounter++;
     }
     
     return 0;
