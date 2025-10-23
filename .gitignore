@@ -1,3 +1,5 @@
-/sys-notif-LED.elf
-/sys-notif-LED.nacp
-/sys-notif-LED.nro
+/sysmodule/sys-notif-LED.elf
+/sysmodule/sys-notif-LED.npdm
+/sysmodule/sys-notif-LED.nso
+/sysmodule/sys-notif-LED.nsp
+/sysmodule/build/
