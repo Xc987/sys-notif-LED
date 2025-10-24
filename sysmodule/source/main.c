@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <switch.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #define INNER_HEAP_SIZE 0x80000
 #define MAX_PADS 8
@@ -69,15 +71,35 @@ void __appExit(void) {
 }
 #endif
 
-void setPattern() {
-    memset(&Pattern, 0, sizeof(Pattern));
-    Pattern.baseMiniCycleDuration = 0x8;
-    Pattern.totalMiniCycles = 0x2;
-    Pattern.startIntensity = 0x2;
-    Pattern.miniCycles[0].ledIntensity = 0xF;
-    Pattern.miniCycles[0].transitionSteps = 0xF;
-    Pattern.miniCycles[1].ledIntensity = 0x2;
-    Pattern.miniCycles[1].transitionSteps = 0xF;
+
+
+void setPattern(char* buffer) {
+    if (strcmp(buffer, "solid") == 0) {
+        memset(&Pattern, 0, sizeof(Pattern));
+        Pattern.baseMiniCycleDuration = 0x0F;
+        Pattern.startIntensity = 0xF;
+        Pattern.miniCycles[0].ledIntensity = 0xF;
+        Pattern.miniCycles[0].transitionSteps = 0x0F;
+        Pattern.miniCycles[0].finalStepDuration = 0x0F;
+    } if (strcmp(buffer, "dim") == 0) {
+        memset(&Pattern, 0, sizeof(Pattern));
+        Pattern.baseMiniCycleDuration = 0x0F;
+        Pattern.startIntensity = 0x5;
+        Pattern.miniCycles[0].ledIntensity = 0x5;
+        Pattern.miniCycles[0].transitionSteps = 0x0F;
+        Pattern.miniCycles[0].finalStepDuration = 0x0F;
+    } else if (strcmp(buffer, "fade") == 0) {
+        memset(&Pattern, 0, sizeof(Pattern));
+        Pattern.baseMiniCycleDuration = 0x8;
+        Pattern.totalMiniCycles = 0x2;
+        Pattern.startIntensity = 0x2;
+        Pattern.miniCycles[0].ledIntensity = 0xF;
+        Pattern.miniCycles[0].transitionSteps = 0xF;
+        Pattern.miniCycles[1].ledIntensity = 0x2;
+        Pattern.miniCycles[1].transitionSteps = 0xF;
+    } else if (strcmp(buffer, "off") == 0) {
+        memset(&Pattern, 0, sizeof(Pattern));
+    }
 }
 
 bool isControllerConnected(HidsysUniquePadId* padId) {
@@ -105,6 +127,12 @@ void setLed(HidsysUniquePadId* padId) {
     Result rc = hidsysSetNotificationLedPattern(&Pattern, *padId);
     if (R_FAILED(rc)) {
         removeController(padId);
+    }
+}
+
+void changeLed() {
+    for (int i = 0; i < numConnectedPads; i++) {
+        setLed(&connectedPads[i]);
     }
 }
 
@@ -144,7 +172,26 @@ void verifyConnectedControllers() {
 }
 
 int main(int argc, char* argv[]) {
-    setPattern();
+    DIR* dir = opendir("sdmc:/config/sys-notif-LED");
+    if (dir) {
+        closedir(dir);
+    } else {
+        mkdir("sdmc:/config/sys-notif-LED", 0777);
+    }
+    FILE* file = fopen("sdmc:/config/sys-notif-LED/type", "w");
+    if (file != NULL) {
+        fprintf(file, "dim");
+        fclose(file);
+    }
+    file = fopen("sdmc:/config/sys-notif-LED/type", "r");
+    if (file) {
+        char buffer[256];
+        if (fgets(buffer, sizeof(buffer), file) != NULL) {
+            buffer[strcspn(buffer, "\n")] = 0;
+            setPattern(buffer);
+        }
+        fclose(file);
+    }
     scanForNewControllers();
     
     while (sysmoduleRunning) {
@@ -153,6 +200,21 @@ int main(int argc, char* argv[]) {
         if (verifyCounter++ >= 5) {
             verifyConnectedControllers();
             verifyCounter = 0;
+        }
+        FILE *file = fopen("sdmc:/config/sys-notif-LED/reset", "r");
+        if (file) {
+            fclose(file);
+            remove("sdmc:/config/sys-notif-LED/reset");
+            FILE* file = fopen("sdmc:/config/sys-notif-LED/type", "r");
+            if (file) {
+                char buffer[256];
+                if (fgets(buffer, sizeof(buffer), file) != NULL) {
+                    buffer[strcspn(buffer, "\n")] = 0;
+                    setPattern(buffer);
+                }
+                fclose(file);
+                changeLed();
+            }
         }
         svcSleepThread(500000000ULL);
     }
