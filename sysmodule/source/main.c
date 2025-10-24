@@ -3,14 +3,12 @@
 #include <string.h>
 #include <switch.h>
 
-// Size of the inner heap
 #define INNER_HEAP_SIZE 0x80000
 #define MAX_PADS 8
 
-// Global variables
 static HidsysUniquePadId connectedPads[MAX_PADS];
 static int numConnectedPads = 0;
-static HidsysNotificationLedPattern dimPattern;
+static HidsysNotificationLedPattern Pattern;
 static bool sysmoduleRunning = true;
 
 #ifdef __cplusplus
@@ -31,11 +29,10 @@ void __libnx_initheap(void) {
 
 void __appInit(void) {
     Result rc;
-
     rc = smInitialize();
-    if (R_FAILED(rc))
+    if (R_FAILED(rc)) {
         diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_InitFail_SM));
-
+    }
     rc = setsysInitialize();
     if (R_SUCCEEDED(rc)) {
         SetSysFirmwareVersion fw;
@@ -44,19 +41,18 @@ void __appInit(void) {
             hosversionSet(MAKEHOSVERSION(fw.major, fw.minor, fw.micro));
         setsysExit();
     }
-
     rc = hidInitialize();
-    if (R_FAILED(rc))
+    if (R_FAILED(rc)) {
         diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_InitFail_HID));
-
+    }
     rc = hidsysInitialize();
-    if (R_FAILED(rc))
+    if (R_FAILED(rc)) {
         diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_InitFail_HID));
-
+    }   
     rc = fsInitialize();
-    if (R_FAILED(rc))
+    if (R_FAILED(rc)) {
         diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_InitFail_FS));
-
+    }
     fsdevMountSdmc();
     smExit();
 }
@@ -73,19 +69,17 @@ void __appExit(void) {
 }
 #endif
 
-// Initialize the dim LED pattern
-void initializeDimPattern() {
-    memset(&dimPattern, 0, sizeof(dimPattern));
-    dimPattern.baseMiniCycleDuration = 0x8;
-    dimPattern.totalMiniCycles = 0x2;
-    dimPattern.startIntensity = 0x2;
-    dimPattern.miniCycles[0].ledIntensity = 0xF;
-    dimPattern.miniCycles[0].transitionSteps = 0xF;
-    dimPattern.miniCycles[1].ledIntensity = 0x2;
-    dimPattern.miniCycles[1].transitionSteps = 0xF;
+void setPattern() {
+    memset(&Pattern, 0, sizeof(Pattern));
+    Pattern.baseMiniCycleDuration = 0x8;
+    Pattern.totalMiniCycles = 0x2;
+    Pattern.startIntensity = 0x2;
+    Pattern.miniCycles[0].ledIntensity = 0xF;
+    Pattern.miniCycles[0].transitionSteps = 0xF;
+    Pattern.miniCycles[1].ledIntensity = 0x2;
+    Pattern.miniCycles[1].transitionSteps = 0xF;
 }
 
-// Check if a controller is already in our connected list
 bool isControllerConnected(HidsysUniquePadId* padId) {
     for (int i = 0; i < numConnectedPads; i++) {
         if (memcmp(&connectedPads[i], padId, sizeof(HidsysUniquePadId)) == 0) {
@@ -95,11 +89,9 @@ bool isControllerConnected(HidsysUniquePadId* padId) {
     return false;
 }
 
-// Remove a controller from the connected list
 void removeController(HidsysUniquePadId* padId) {
     for (int i = 0; i < numConnectedPads; i++) {
         if (memcmp(&connectedPads[i], padId, sizeof(HidsysUniquePadId)) == 0) {
-            // Shift remaining controllers
             for (int j = i; j < numConnectedPads - 1; j++) {
                 connectedPads[j] = connectedPads[j + 1];
             }
@@ -109,23 +101,19 @@ void removeController(HidsysUniquePadId* padId) {
     }
 }
 
-// Set dim LED pattern on a controller
-void setDimLed(HidsysUniquePadId* padId) {
-    Result rc = hidsysSetNotificationLedPattern(&dimPattern, *padId);
+void setLed(HidsysUniquePadId* padId) {
+    Result rc = hidsysSetNotificationLedPattern(&Pattern, *padId);
     if (R_FAILED(rc)) {
-        // If setting LED fails, remove the controller from our list
         removeController(padId);
     }
 }
 
-// Scan for newly connected controllers and dim their LEDs
 void scanForNewControllers() {
     HidNpadIdType controllerTypes[MAX_PADS] = {
         HidNpadIdType_Handheld,
         HidNpadIdType_No1, HidNpadIdType_No2, HidNpadIdType_No3, HidNpadIdType_No4,
         HidNpadIdType_No5, HidNpadIdType_No6, HidNpadIdType_No7
     };
-
     for (int i = 0; i < MAX_PADS; i++) {
         HidsysUniquePadId padIds[MAX_PADS];
         s32 total_entries = 0;
@@ -135,13 +123,9 @@ void scanForNewControllers() {
         if (R_SUCCEEDED(rc) && total_entries > 0) {
             for (int j = 0; j < total_entries; j++) {
                 if (!isControllerConnected(&padIds[j])) {
-                    // New controller found - add to list and dim LED
                     if (numConnectedPads < MAX_PADS) {
                         connectedPads[numConnectedPads++] = padIds[j];
-                        setDimLed(&padIds[j]);
-                        
-                        // Log the new connection (optional)
-                        // You could write to a log file here
+                        setLed(&padIds[j]);
                     }
                 }
             }
@@ -149,42 +133,28 @@ void scanForNewControllers() {
     }
 }
 
-// Verify existing controllers are still connected
 void verifyConnectedControllers() {
     for (int i = 0; i < numConnectedPads; i++) {
-        // Try to set the LED pattern to verify the controller is still connected
-        Result rc = hidsysSetNotificationLedPattern(&dimPattern, connectedPads[i]);
+        Result rc = hidsysSetNotificationLedPattern(&Pattern, connectedPads[i]);
         if (R_FAILED(rc)) {
-            // Controller is no longer responsive, remove it
             removeController(&connectedPads[i]);
-            i--; // Adjust index after removal
+            i--;
         }
     }
 }
 
-// Main program entrypoint
 int main(int argc, char* argv[]) {
-    // Initialize the dim LED pattern
-    initializeDimPattern();
-    
-    // Initial scan to get currently connected controllers
+    setPattern();
     scanForNewControllers();
     
-    // Main service loop
     while (sysmoduleRunning) {
-        // Scan for new controllers every second
         scanForNewControllers();
-        
-        // Verify existing controllers every 5 seconds
         static int verifyCounter = 0;
         if (verifyCounter++ >= 5) {
             verifyConnectedControllers();
             verifyCounter = 0;
         }
-        
-        // Sleep for 1 second
-        svcSleepThread(500000000ULL); // 1 second in nanoseconds
+        svcSleepThread(500000000ULL);
     }
-    
     return 0;
 }
