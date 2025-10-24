@@ -1,53 +1,103 @@
-#define TESLA_INIT_IMPL // If you have more than one file using the tesla header, only define this in the main one
-#include <tesla.hpp>    // The Tesla Header
-
+#define TESLA_INIT_IMPL
+#include <tesla.hpp>
+#include <string>
+#include <fstream>
 
 class GuiTest : public tsl::Gui {
 public:
     GuiTest() { }
 
-    // Called when this Gui gets loaded to create the UI
-    // Allocate all elements on the heap. libtesla will make sure to clean them up when not needed anymore
     virtual tsl::elm::Element* createUI() override {
-        // A OverlayFrame is the base element every overlay consists of. This will draw the default Title and Subtitle.
-        // If you need more information in the header or want to change it's look, use a HeaderOverlayFrame.
-        auto frame = new tsl::elm::OverlayFrame("Tesla Example", "v1.3.1");
-
-        // A list that can contain sub elements and handles scrolling
+        auto frame = new tsl::elm::OverlayFrame("sys-notif-LED", "v1.0.0");
         auto list = new tsl::elm::List();
 
-        // Create and add a new list item to the list
-        list->addItem(new tsl::elm::ListItem("Default List Item"));
+        auto solidItem = new tsl::elm::ListItem("Set LED: Solid");
+        solidItem->setClickListener([](u64 keys) {
+            if (keys & HidNpadButton_A) {
+                const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
+                const std::string typePath  = "sdmc:/config/sys-notif-LED/type";
+                fsdevMountSdmc();
+                std::ofstream resetFile(resetPath);
+                std::ofstream typeFile(typePath);
+                typeFile << "solid";
+                return true;
+            }
+            return false;
+        });
+        list->addItem(solidItem);
 
-        // Add the list to the frame for it to be drawn
+        auto dimItem = new tsl::elm::ListItem("Set LED: Dim");
+        dimItem->setClickListener([](u64 keys) {
+            if (keys & HidNpadButton_A) {
+                const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
+                const std::string typePath  = "sdmc:/config/sys-notif-LED/type";
+                fsdevMountSdmc();
+                std::ofstream resetFile(resetPath);
+                std::ofstream typeFile(typePath);
+                typeFile << "dim";
+                return true;
+            }
+            return false;
+        });
+        list->addItem(dimItem);
+        
+        auto fadeItem = new tsl::elm::ListItem("Set LED: Fade");
+        fadeItem->setClickListener([](u64 keys) {
+            if (keys & HidNpadButton_A) {
+                const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
+                const std::string typePath  = "sdmc:/config/sys-notif-LED/type";
+                fsdevMountSdmc();
+                std::ofstream resetFile(resetPath);
+                std::ofstream typeFile(typePath);
+                typeFile << "fade";
+                return true;
+            }
+            return false;
+        });
+        list->addItem(fadeItem);
+
+        auto offItem = new tsl::elm::ListItem("Set LED: Off");
+        offItem->setClickListener([](u64 keys) {
+            if (keys & HidNpadButton_A) {
+                const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
+                const std::string typePath  = "sdmc:/config/sys-notif-LED/type";
+                fsdevMountSdmc();
+                std::ofstream resetFile(resetPath);
+                std::ofstream typeFile(typePath);
+                typeFile << "off";
+                return true;
+            }
+            return false;
+        });
+        list->addItem(offItem);
+
         frame->setContent(list);
-
-        // Return the frame to have it become the top level element of this Gui
         return frame;
     }
 
-    // Called once every frame to update values
-    virtual void update() override {
+    virtual void update() override { }
 
-    }
-
-    // Called once every frame to handle inputs not handled by other UI elements
-    virtual bool handleInput(u64 keysDown, u64 keysHeld, const HidTouchState &touchPos, HidAnalogStickState joyStickPosLeft, HidAnalogStickState joyStickPosRight) override {
-        return false;   // Return true here to signal the inputs have been consumed
+    virtual bool handleInput(u64 keysDown, u64 keysHeld, const HidTouchState &touchPos,
+                             HidAnalogStickState joyStickPosLeft, HidAnalogStickState joyStickPosRight) override {
+        return false;
     }
 };
 
 class OverlayTest : public tsl::Overlay {
 public:
-                                             // libtesla already initialized fs, hid, pl, pmdmnt, hid:sys and set:sys
-    virtual void initServices() override {}  // Called at the start to initialize all services necessary for this Overlay
-    virtual void exitServices() override {}  // Callet at the end to clean up all services previously initialized
+    virtual void initServices() override {
+        fsdevMountSdmc();
+    }
 
-    virtual void onShow() override {}    // Called before overlay wants to change from invisible to visible state
-    virtual void onHide() override {}    // Called before overlay wants to change from visible to invisible state
+    virtual void exitServices() override {
+        fsdevUnmountDevice("sdmc");
+    }
+
+    virtual void onShow() override {}
+    virtual void onHide() override {}
 
     virtual std::unique_ptr<tsl::Gui> loadInitialGui() override {
-        return initially<GuiTest>();  // Initial Gui to load. It's possible to pass arguments to it's constructor like this
+        return initially<GuiTest>();
     }
 };
 
