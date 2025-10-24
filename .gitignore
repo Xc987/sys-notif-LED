@@ -3,3 +3,8 @@
 /sysmodule/sys-notif-LED.nso
 /sysmodule/sys-notif-LED.nsp
 /sysmodule/build/
+
+/overlay/sys-notif-LED.elf
+/overlay/sys-notif-LED.nacp
+/overlay/sys-notif-LED.ovl
+/overlay/build/
