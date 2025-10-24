@@ -178,11 +178,16 @@ int main(int argc, char* argv[]) {
     } else {
         mkdir("sdmc:/config/sys-notif-LED", 0777);
     }
-    FILE* file = fopen("sdmc:/config/sys-notif-LED/type", "w");
-    if (file != NULL) {
-        fprintf(file, "dim");
+    FILE* file = fopen("sdmc:/config/sys-notif-LED/type", "r");
+    if (!file) {
         fclose(file);
+        FILE* f = fopen("sdmc:/config/sys-notif-LED/type", "w");
+        if (f) {
+            fprintf(f, "dim");
+            fclose(f);
+        }
     }
+    fclose(file);
     file = fopen("sdmc:/config/sys-notif-LED/type", "r");
     if (file) {
         char buffer[256];
