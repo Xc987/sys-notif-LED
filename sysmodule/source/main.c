@@ -13,6 +13,9 @@ static int numConnectedPads = 0;
 static HidsysNotificationLedPattern Pattern;
 static bool sysmoduleRunning = true;
 
+static bool chargeSelected = false;
+static bool currentlyCharging = false;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -55,6 +58,7 @@ void __appInit(void) {
     if (R_FAILED(rc)) {
         diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_InitFail_FS));
     }
+    psmInitialize();
     fsdevMountSdmc();
     smExit();
 }
@@ -65,13 +69,12 @@ void __appExit(void) {
     hidsysExit();
     hidExit();
     fsExit();
+    psmExit();
 }
 
 #ifdef __cplusplus
 }
 #endif
-
-
 
 void setPattern(char* buffer) {
     if (strcmp(buffer, "solid") == 0) {
@@ -99,6 +102,13 @@ void setPattern(char* buffer) {
         Pattern.miniCycles[1].transitionSteps = 0xF;
     } else if (strcmp(buffer, "off") == 0) {
         memset(&Pattern, 0, sizeof(Pattern));
+    } else if (strcmp(buffer, "charge") == 0) {
+        memset(&Pattern, 0, sizeof(Pattern));
+        chargeSelected = true;
+    }
+    if (strcmp(buffer, "charge") != 0) {
+        chargeSelected = false;
+        currentlyCharging = false;
     }
 }
 
@@ -219,6 +229,33 @@ int main(int argc, char* argv[]) {
                 }
                 fclose(file);
                 changeLed();
+            }
+        }
+        PsmChargerType chargerType;
+        psmGetChargerType(&chargerType);
+        if (chargerType != PsmChargerType_Unconnected){
+            printf(" [Charging]");
+        } else {
+            printf(" [Discharging]");
+        }
+        if(chargeSelected) {
+            if (!currentlyCharging) {
+                if (chargerType != PsmChargerType_Unconnected) {
+                    currentlyCharging = true;
+                    memset(&Pattern, 0, sizeof(Pattern));
+                    Pattern.baseMiniCycleDuration = 0x0F;
+                    Pattern.startIntensity = 0x5;
+                    Pattern.miniCycles[0].ledIntensity = 0x5;
+                    Pattern.miniCycles[0].transitionSteps = 0x0F;
+                    Pattern.miniCycles[0].finalStepDuration = 0x0F;
+                    changeLed();
+                }
+            } else {
+                if (chargerType == PsmChargerType_Unconnected) {
+                    currentlyCharging = false;
+                    memset(&Pattern, 0, sizeof(Pattern));
+                    changeLed();
+                }
             }
         }
         svcSleepThread(500000000ULL);

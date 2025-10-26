@@ -26,7 +26,7 @@ public:
         });
         list->addItem(solidItem);
 
-        auto dimItem = new tsl::elm::ListItem("Set LED: Dim");
+        auto dimItem = new tsl::elm::ListItem("Set LED to Dim");
         dimItem->setClickListener([](u64 keys) {
             if (keys & HidNpadButton_A) {
                 const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
@@ -41,7 +41,7 @@ public:
         });
         list->addItem(dimItem);
         
-        auto fadeItem = new tsl::elm::ListItem("Set LED: Fade");
+        auto fadeItem = new tsl::elm::ListItem("Set LED to Fade");
         fadeItem->setClickListener([](u64 keys) {
             if (keys & HidNpadButton_A) {
                 const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
@@ -56,7 +56,7 @@ public:
         });
         list->addItem(fadeItem);
 
-        auto offItem = new tsl::elm::ListItem("Set LED: Off");
+        auto offItem = new tsl::elm::ListItem("Set LED to Off");
         offItem->setClickListener([](u64 keys) {
             if (keys & HidNpadButton_A) {
                 const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
@@ -70,6 +70,21 @@ public:
             return false;
         });
         list->addItem(offItem);
+
+        auto chargeitem = new tsl::elm::ListItem("*Dim when charging");
+        chargeitem->setClickListener([](u64 keys) {
+            if (keys & HidNpadButton_A) {
+                const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
+                const std::string typePath  = "sdmc:/config/sys-notif-LED/type";
+                fsdevMountSdmc();
+                std::ofstream resetFile(resetPath);
+                std::ofstream typeFile(typePath);
+                typeFile << "charge";
+                return true;
+            }
+            return false;
+        });
+        list->addItem(chargeitem);
 
         frame->setContent(list);
         return frame;
