@@ -16,6 +16,10 @@ static bool sysmoduleRunning = true;
 static bool chargeSelected = false;
 static bool currentlyCharging = false;
 
+static bool batterySelected = false;
+static int batteryStatus = -1; // 0: 100%-16% | 1: 15%-6% | 2: 5%-1%
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -105,10 +109,17 @@ void setPattern(char* buffer) {
     } else if (strcmp(buffer, "charge") == 0) {
         memset(&Pattern, 0, sizeof(Pattern));
         chargeSelected = true;
+    } else if (strcmp(buffer, "battery") == 0) {
+        memset(&Pattern, 0, sizeof(Pattern));
+        batterySelected = true;
     }
     if (strcmp(buffer, "charge") != 0) {
         chargeSelected = false;
         currentlyCharging = false;
+    }
+    if (strcmp(buffer, "battery") != 0) {
+        batterySelected = false;
+        batteryStatus = -1;
     }
 }
 
@@ -231,14 +242,9 @@ int main(int argc, char* argv[]) {
                 changeLed();
             }
         }
-        PsmChargerType chargerType;
-        psmGetChargerType(&chargerType);
-        if (chargerType != PsmChargerType_Unconnected){
-            printf(" [Charging]");
-        } else {
-            printf(" [Discharging]");
-        }
-        if(chargeSelected) {
+        if (chargeSelected) {
+            PsmChargerType chargerType;
+            psmGetChargerType(&chargerType);
             if (!currentlyCharging) {
                 if (chargerType != PsmChargerType_Unconnected) {
                     currentlyCharging = true;
@@ -256,6 +262,51 @@ int main(int argc, char* argv[]) {
                     memset(&Pattern, 0, sizeof(Pattern));
                     changeLed();
                 }
+            }
+        }
+        if (batterySelected) {
+            PsmChargerType chargerType;
+            psmGetChargerType(&chargerType);
+            if (chargerType == PsmChargerType_Unconnected) {
+                u32 batteryCharge;
+                psmGetBatteryChargePercentage(&batteryCharge);
+                int lastStatus = batteryStatus;
+                if (batteryCharge <= 5) {
+                    batteryStatus = 2;
+                } else if (batteryCharge <= 15) {
+                    batteryStatus = 1;
+                } else {
+                    batteryStatus = 0;
+                }
+                if (lastStatus != batteryStatus) {
+                    if (batteryStatus == 0) {
+                        memset(&Pattern, 0, sizeof(Pattern));
+                        changeLed();
+                    } else if (batteryStatus == 1) {
+                        memset(&Pattern, 0, sizeof(Pattern));
+                        Pattern.baseMiniCycleDuration = 0x0F;
+                        Pattern.startIntensity = 0x5;
+                        Pattern.miniCycles[0].ledIntensity = 0x5;
+                        Pattern.miniCycles[0].transitionSteps = 0x0F;
+                        Pattern.miniCycles[0].finalStepDuration = 0x0F;
+                        changeLed();
+                    } else if (batteryStatus == 2) {
+                        memset(&Pattern, 0, sizeof(Pattern));
+                        memset(&Pattern, 0, sizeof(Pattern));
+                        Pattern.baseMiniCycleDuration = 0x4;
+                        Pattern.totalMiniCycles = 0x4;
+                        Pattern.startIntensity = 0x2;
+                        Pattern.miniCycles[0].ledIntensity = 0xF;
+                        Pattern.miniCycles[0].transitionSteps = 0x2;
+                        Pattern.miniCycles[1].ledIntensity = 0x2;
+                        Pattern.miniCycles[1].transitionSteps = 0x2;
+                        changeLed();
+                    }
+                }
+            } else {
+                memset(&Pattern, 0, sizeof(Pattern));
+                batteryStatus = -1;
+                changeLed();
             }
         }
         svcSleepThread(500000000ULL);

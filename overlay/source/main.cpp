@@ -71,7 +71,7 @@ public:
         });
         list->addItem(offItem);
 
-        auto chargeitem = new tsl::elm::ListItem("*Dim when charging");
+        auto chargeitem = new tsl::elm::ListItem("Dim when charging");
         chargeitem->setClickListener([](u64 keys) {
             if (keys & HidNpadButton_A) {
                 const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
@@ -85,6 +85,21 @@ public:
             return false;
         });
         list->addItem(chargeitem);
+
+        auto batteryItem = new tsl::elm::ListItem("Dim <=15%, blink <=5% battery");
+        batteryItem->setClickListener([](u64 keys) {
+            if (keys & HidNpadButton_A) {
+                const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
+                const std::string typePath  = "sdmc:/config/sys-notif-LED/type";
+                fsdevMountSdmc();
+                std::ofstream resetFile(resetPath);
+                std::ofstream typeFile(typePath);
+                typeFile << "battery";
+                return true;
+            }
+            return false;
+        });
+        list->addItem(batteryItem);
 
         frame->setContent(list);
         return frame;
