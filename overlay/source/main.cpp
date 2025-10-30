@@ -8,10 +8,10 @@ public:
     GuiTest() { }
 
     virtual tsl::elm::Element* createUI() override {
-        auto frame = new tsl::elm::OverlayFrame("sys-notif-LED", "v1.0.0");
+        auto frame = new tsl::elm::OverlayFrame("sys-notif-LED", "1.0.0");
         auto list = new tsl::elm::List();
 
-        auto solidItem = new tsl::elm::ListItem("Set LED: Solid");
+        auto solidItem = new tsl::elm::ListItem("Set LED to Solid");
         solidItem->setClickListener([](u64 keys) {
             if (keys & HidNpadButton_A) {
                 const std::string resetPath = "sdmc:/config/sys-notif-LED/reset";
